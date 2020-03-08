@@ -1,0 +1,13 @@
+{
+  "domain": "luci_config",
+  "name": "Luci Config",
+  "requirements": [
+    "openwrt-luci-rpc==1.1.2"
+  ],
+  "dependencies": [],
+  "codeowners": [
+    "@fbradyirl",
+    "@mzdrale",
+    "@koying"
+  ]
+}
