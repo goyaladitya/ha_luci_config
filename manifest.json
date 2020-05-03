@@ -2,7 +2,7 @@
   "domain": "luci_config",
   "name": "Luci Config",
   "requirements": [
-    "openwrt-luci-rpc==1.1.2"
+    "openwrt-luci-rpc==1.1.3"
   ],
   "dependencies": [],
   "codeowners": [

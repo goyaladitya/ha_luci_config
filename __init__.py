@@ -3,19 +3,18 @@ import logging
 import glob
 from datetime import timedelta
 
-from openwrt_luci_rpc import OpenWrtRpc
-from openwrt_luci_rpc.utilities import normalise_keys
-from openwrt_luci_rpc.constants import Constants
-from openwrt_luci_rpc.exceptions import LuciConfigError, InvalidLuciTokenError
+from openwrt_luci_rpc.openwrt_luci_rpc import OpenWrtLuciRPC # pylint: disable=import-error
+from openwrt_luci_rpc.utilities import normalise_keys # pylint: disable=import-error
+from openwrt_luci_rpc.constants import Constants # pylint: disable=import-error
+from openwrt_luci_rpc.exceptions import LuciConfigError, InvalidLuciTokenError # pylint: disable=import-error
 
-import voluptuous as vol
+import voluptuous as vol # pylint: disable=import-error
 
-from homeassistant.components.switch import (
+from homeassistant.components.switch import ( # pylint: disable=import-error
     DOMAIN,
-    PLATFORM_SCHEMA,
     SwitchDevice,
 )
-from homeassistant.const import (
+from homeassistant.const import ( # pylint: disable=import-error
     CONF_HOST,
     CONF_PASSWORD,
     CONF_SSL,
@@ -23,16 +22,16 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
     CONF_SCAN_INTERVAL,
 )
-import homeassistant.helpers.config_validation as cv
+import homeassistant.helpers.config_validation as cv # pylint: disable=import-error
 
-from homeassistant.helpers import discovery
-from homeassistant.helpers.dispatcher import (
+from homeassistant.helpers import discovery # pylint: disable=import-error
+from homeassistant.helpers.dispatcher import ( # pylint: disable=import-error
     async_dispatcher_connect,
     async_dispatcher_send,
 )
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.event import async_track_point_in_utc_time
-from homeassistant.util.dt import utcnow
+from homeassistant.helpers.entity import Entity # pylint: disable=import-error
+from homeassistant.helpers.event import async_track_point_in_utc_time # pylint: disable=import-error
+from homeassistant.util.dt import utcnow # pylint: disable=import-error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,7 +61,7 @@ CONFIG_SCHEMA = vol.Schema({
     ])
 }, extra=vol.ALLOW_EXTRA)
 
-async def async_setup(hass, config):
+def setup(hass, config):
     _LOGGER.info("Initializing Luci config platform: %s", hass.config.path("*.uci"))
 
     if not config[DOMAIN]:
@@ -70,7 +69,7 @@ async def async_setup(hass, config):
 
     for p_config in config[DOMAIN]:
         interval = p_config.get(CONF_SCAN_INTERVAL)
-        data = hass.data[DATA_KEY + "_" + p_config.get(CONF_HOST)] = LuciRPC(p_config)
+        _rpc = hass.data[DATA_KEY + "_" + p_config.get(CONF_HOST)] = LuciRPC(p_config)
 
         uci_files = glob.glob(hass.config.path("*.uci"))
         _LOGGER.info("Luci: %d uci files", len(uci_files))
@@ -98,10 +97,10 @@ async def async_setup(hass, config):
 
             _LOGGER.debug("LuciConfig: name: %s; desc: %s; test: %s; value: %s", sw_name, sw_desc, sw_test_key, sw_values[sw_test_key])
             if sw_name and sw_desc and sw_test_key and sw_values[sw_test_key]:
-                if sw_name in data.cfg:
-                    cfg = data.cfg[sw_name]
+                if sw_name in _rpc.cfg:
+                    pass
                 else:
-                    cfg = data.cfg[sw_name] = LuciConfig(sw_name, sw_desc, sw_test_key, sw_values, sw_file)
+                    _rpc.cfg[sw_name] = LuciConfig(sw_name, sw_desc, sw_test_key, sw_values, sw_file)
                     hass.async_create_task(
                         discovery.async_load_platform(
                             hass,
@@ -114,7 +113,7 @@ async def async_setup(hass, config):
                
         async_dispatcher_send(hass, SIGNAL_STATE_UPDATED)
 
-        if not data.success_init:
+        if not _rpc.success_init:
             return False
     
     return True
@@ -147,49 +146,50 @@ class LuciConfig():
 class LuciRPC():
     def __init__(self, config):
         """Initialize the router."""
-        self.routerRpc = OpenWrtRpc(
+        self._rpc = OpenWrtLuciRPC(
             config.get(CONF_HOST),
             config.get(CONF_USERNAME),
             config.get(CONF_PASSWORD),
             config.get(CONF_SSL),
             config.get(CONF_VERIFY_SSL),
         )
-        self.success_init = self.routerRpc.is_logged_in()
+        self.success_init = self._rpc.token is not None
         if not self.success_init:
             _LOGGER.eroor("Cannot connect to luci")    
             return
 
         self.cfg = {}
 
-    def rpc_call(self, method, *args, **kwargs):
+    def rpc_call(self, method, *args,  **kwargs):
         rpc_uci_call = Constants.LUCI_RPC_UCI_PATH.format(
-            self.routerRpc.router.host_api_url), method, *args
+            self._rpc.host_api_url), method, *args
         try:
-            rpc_result = self.routerRpc.router._call_json_rpc(*rpc_uci_call)
+            rpc_result = self._rpc._call_json_rpc(*rpc_uci_call)
         except InvalidLuciTokenError:
             _LOGGER.info("Refreshing login token")
-            self.routerRpc.router._refresh_token()
-            return rpc_call(method, args, kwargs)
+            self._rpc._refresh_token()
+            return self.rpc_call(method, args)
 
         return rpc_result
 
 
 class LuciConfigEntity(Entity):
-    """Base class for all entities."""
+    """ Base class for all entities. """
 
     def __init__(self, host, name, datastr):
         """Initialize the entity."""
         self.host = host
         self.cfgname = name
         self.datastr = datastr
+        self._is_on = False
 
-        self.data = None
-        self.cfg = None
+        self._rpc = None
+        self._cfg = None
 
     async def async_added_to_hass(self):
         """Register update dispatcher."""
-        self.data = self.hass.data[self.datastr]
-        self.cfg = self.data.cfg[self.cfgname]
+        self._rpc = self.hass.data[self.datastr]
+        self._cfg = self._rpc.cfg[self.cfgname]
 
         async_dispatcher_connect(
             self.hass, SIGNAL_STATE_UPDATED, self.async_schedule_update_ha_state
@@ -206,7 +206,7 @@ class LuciConfigEntity(Entity):
 
     @property
     def name(self):
-        return self.cfg.desc if self.cfg else ""
+        return self._cfg.desc if self._cfg else ""
 
     @property
     def should_poll(self):
@@ -222,5 +222,5 @@ class LuciConfigEntity(Entity):
     def device_state_attributes(self):
         """Return device specific state attributes."""
         return {
-          "file": self.cfg.file
+        "file": self._cfg.file
         }
