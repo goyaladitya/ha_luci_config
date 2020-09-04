@@ -12,7 +12,6 @@ luci_config:
   host: <openwrt_ip>
   username: !secret openwrt_user
   password: !secret openwrt_password
-
 ```
 
 ## Openwrt config files (*.uci)
@@ -24,7 +23,7 @@ Each .uci file will translate into a switch in HA. Triggering the switch will en
 
 ex:
 
-```
+```ini
 #sw_name=wan_static_config
 #sw_desc=WAN configuration to box
 #sw_test=network.wan.proto
