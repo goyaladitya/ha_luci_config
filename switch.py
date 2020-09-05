@@ -40,11 +40,21 @@ class LuciConfigSwitch(LuciConfigEntity, ToggleEntity):
 
     def update(self):
         """Update vesync device."""
-        params = self._cfg.test_key.split(".")
-        cfg_value = self._rpc.rpc_call('get', *params)
-        if (cfg_value is None):
-            _LOGGER.error("LuciConfig: cannot get current value for %s", self._cfg.test_key)
-            self._is_on = False
-        else:
-            _LOGGER.debug("Luci get %s returned: %s", self._cfg.test_key, cfg_value) 
-            self._is_on = (cfg_value == self._cfg.test_value)
+        self._is_on = False
+        for key in self._cfg.test_key:
+            if (self._cfg.values[key] is None):
+                _LOGGER.error("LuciConfig: test key '%s' is not in uci values", key)
+                return
+            params = key.split(".")
+            try:
+                cfg_value = self._rpc.rpc_call('get', *params)
+            except:
+                return
+            if (cfg_value is None):
+                _LOGGER.error("LuciConfig: cannot get current value for %s", key)
+                return
+            else:
+                _LOGGER.debug("Luci get %s returned: %s", key, cfg_value) 
+                if (cfg_value != self._cfg.values[key]):
+                    return
+        self._is_on = True

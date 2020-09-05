@@ -95,8 +95,8 @@ def setup(hass, config):
                     else:
                         sw_values[kv[0]] = kv[1].strip().replace("'", "")
 
-            _LOGGER.debug("LuciConfig: name: %s; desc: %s; test: %s; value: %s", sw_name, sw_desc, sw_test_key, sw_values[sw_test_key])
-            if sw_name and sw_desc and sw_test_key and sw_values[sw_test_key]:
+            _LOGGER.debug("LuciConfig: name: %s; desc: %s; test: %s;", sw_name, sw_desc, sw_test_key)
+            if sw_name and sw_desc and sw_test_key:
                 if sw_name in _rpc.cfg:
                     pass
                 else:
@@ -123,8 +123,7 @@ class LuciConfig():
     def __init__(self, name, desc, test_key, values, file):
         self.name = name
         self.desc = desc
-        self.test_key = test_key
-        self.test_value = values[test_key]
+        self.test_key = test_key.split(",")
         self.values = values
         self.file = file
 
