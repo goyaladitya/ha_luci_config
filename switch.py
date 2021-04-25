@@ -1,19 +1,31 @@
 import logging
 
+from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import ToggleEntity # pylint: disable=import-error
+from homeassistant.const import ( # pylint: disable=import-error
+    CONF_HOST,
+    CONF_PASSWORD,
+    CONF_SSL,
+    CONF_USERNAME,
+    CONF_VERIFY_SSL,
+    CONF_SCAN_INTERVAL,
+)
 
-from . import DATA_KEY, LuciConfigEntity
+from . import LuciConfigEntity
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+async def async_setup_entry(hass, config_entry, async_add_entities):
+    """Set up switches dynamically."""
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Set up a Luci switch."""
-    if discovery_info is None:
-        return
-    add_entities([LuciConfigSwitch(*discovery_info)])
-
-
+    entities= []
+    rpc = hass.data[DOMAIN][config_entry.data.get(CONF_HOST)]
+    for key in rpc.cfg:
+        entities.append(LuciConfigSwitch(rpc, key))
+    
+    async_add_entities(entities, True)
 class LuciConfigSwitch(LuciConfigEntity, ToggleEntity):
     """Representation of a Luci switch."""
 

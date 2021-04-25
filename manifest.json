@@ -1,8 +1,10 @@
 {
   "domain": "luci_config",
   "name": "Luci Config",
+  "version": "1.0",
+  "config_flow": true,
   "requirements": [
-    "openwrt-luci-rpc==1.1.3"
+    "openwrt-luci-rpc==1.1.6"
   ],
   "dependencies": [],
   "codeowners": [

@@ -1,0 +1,53 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Service is already configured",
+            "conn_error": "Unable to connect."
+        },
+        "error": {
+            "cannot_connect": "Unable to connect",
+            "unknown": "Unknown Error"
+        },
+        "flow_title": "Luci Config Configuration",
+        "step": {
+            "user": {
+                "data": {
+                    "host": "Host",
+                    "username": "Username",
+                    "password": "Password",
+                    "ssl": "Enable SSL",
+                    "verify_ssl": "Verify SSL host",
+                    "scan_interval": "Scan interval (minutes)"
+                },
+                "description": "Configure the connection details.",
+                "title": "Luci Config"
+            }
+        }
+    },
+    "options": {
+        "abort": {
+            "already_configured": "Service is already configured",
+            "conn_error": "Unable to connect."
+        },
+        "error": {
+            "cannot_connect": "Unable to connect",
+            "unknown": "Unknown Error"
+        },
+        "flow_title": "Luci Config Configuration",
+        "step": {
+            "user": {
+                "data": {
+                    "host": "Host",
+                    "username": "Username",
+                    "password": "Password",
+                    "ssl": "Enable SSL",
+                    "verify_ssl": "Verify SSL host",
+                    "scan_interval": "Scan interval"
+                },
+                "description": "Configure the connection details.",
+                "title": "Luci Config"
+            }
+        }
+    },
+    "title": "Luci Config"
+}
