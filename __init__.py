@@ -23,27 +23,18 @@ from homeassistant.const import ( # pylint: disable=import-error
 )
 import homeassistant.helpers.config_validation as cv # pylint: disable=import-error
 
-from homeassistant.helpers import discovery # pylint: disable=import-error
 from homeassistant.helpers.dispatcher import ( # pylint: disable=import-error
-    async_dispatcher_connect,
     async_dispatcher_send,
 )
-from homeassistant.helpers.entity import Entity # pylint: disable=import-error
-from homeassistant.helpers.event import async_track_point_in_utc_time # pylint: disable=import-error
-from homeassistant.util.dt import utcnow # pylint: disable=import-error
 
 from .const import (
     DOMAIN,
-    MIN_UPDATE_INTERVAL,
-    DEFAULT_UPDATE_INTERVAL,
-    DEFAULT_SSL,
-    DEFAULT_VERIFY_SSL,
+    SIGNAL_STATE_UPDATED,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["switch"]
-SIGNAL_STATE_UPDATED = "{}.updated".format(DOMAIN)
 UPDATE_UNLISTENER = None
 
 async def async_setup(hass: HomeAssistant, config: dict):
@@ -52,26 +43,26 @@ async def async_setup(hass: HomeAssistant, config: dict):
 
     return True
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     global UPDATE_UNLISTENER
     if UPDATE_UNLISTENER:
         UPDATE_UNLISTENER()
 
-    if not entry.unique_id:
-        hass.config_entries.async_update_entry(entry, unique_id=entry.title)
+    if not config_entry.unique_id:
+        hass.config_entries.async_update_entry(config_entry, unique_id=config_entry.title)
 
     config = {}
-    for key, value in entry.data.items():
+    for key, value in config_entry.data.items():
         config[key] = value
-    for key, value in entry.options.items():
+    for key, value in config_entry.options.items():
         config[key] = value
-    if entry.options:
-        hass.config_entries.async_update_entry(entry, data=config, options={})
+    if config_entry.options:
+        hass.config_entries.async_update_entry(config_entry, data=config, options={})
 
     config_glob = hass.config.path("%s/*.uci" % (DOMAIN))
     _LOGGER.info("Initializing Luci config platform: %s", config_glob)
 
-    UPDATE_UNLISTENER = entry.add_update_listener(_update_listener)
+    UPDATE_UNLISTENER = config_entry.add_update_listener(_update_listener)
 
     _rpc = await hass.async_add_executor_job(LuciRPC, config)
     if not _rpc.success_init:
@@ -111,10 +102,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 _rpc.cfg[sw_name] = LuciConfig(sw_name, sw_desc, sw_test_key, sw_values, sw_file)
 
 
+    openvpn_result = await hass.async_add_executor_job(_rpc.rpc_call, 'get_all', 'openvpn')
+    _LOGGER.debug("Luci get_all openvpn returned: %s", openvpn_result)    
+
+    for vpn_entry in openvpn_result:
+        _LOGGER.debug("Luci: vpn %s", vpn_entry)
+        if openvpn_result[vpn_entry][".name"] in _rpc.vpn:
+            vpn = _rpc.vpn[openvpn_result[vpn_entry][".name"]]
+        else:
+            _LOGGER.info("Luci: vpn %s found", vpn_entry)
+            vpn =_rpc.vpn[openvpn_result[vpn_entry][".name"]] = LuciVPN()
+
+        vpn.name = openvpn_result[vpn_entry][".name"]
+        if "enabled" not in openvpn_result[vpn_entry]:
+            vpn.enabled = False
+        else:
+            vpn.enabled = openvpn_result[vpn_entry]["enabled"] == "1"
 
     for component in PLATFORMS:
         hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, component)
+            hass.config_entries.async_forward_entry_setup(config_entry, component)
         )
 
     async_dispatcher_send(hass, SIGNAL_STATE_UPDATED)
@@ -166,6 +173,27 @@ class LuciConfig():
     def __hash__(self):
         return hash(self.__repr__())
 
+class LuciVPN():
+
+    def __init__(self):
+        self.name = ""
+        self.enabled = False
+
+    def __repr__(self):
+        return self.name
+
+    def __eq__(self, other):
+        if isinstance(other, LuciVPN):
+            return (self.name == other.name)
+        else:
+            return False
+
+    def __ne__(self, other):
+        return (not self.__eq__(other))
+
+    def __hash__(self):
+        return hash(self.__repr__())
+
 class LuciRPC():
     def __init__(self, config):
         """Initialize the router."""
@@ -183,6 +211,7 @@ class LuciRPC():
             return
 
         self.cfg = {}
+        self.vpn = {}
 
     def rpc_call(self, method, *args,  **kwargs):
         rpc_uci_call = Constants.LUCI_RPC_UCI_PATH.format(
@@ -196,54 +225,3 @@ class LuciRPC():
 
         return rpc_result
 
-
-class LuciConfigEntity(Entity):
-    """ Base class for all entities. """
-
-    def __init__(self, rpc, name):
-        """Initialize the entity."""
-
-        _LOGGER.debug("New entity: %s", name)
-
-        self._rpc = rpc
-        self.cfgname = name
-        self._is_on = False
-
-        self.host = self._rpc.host
-        self._cfg = self._rpc.cfg[self.cfgname]
-
-    async def async_added_to_hass(self):
-        """Register update dispatcher."""
-        async_dispatcher_connect(
-            self.hass, SIGNAL_STATE_UPDATED, self.async_schedule_update_ha_state
-        )
-
-    @property
-    def icon(self):
-        """Return the icon."""
-        return "mdi:script-text"
-
-    @property
-    def unique_id(self):
-        return f"{self.host}_{self.cfgname}"
-
-    @property
-    def name(self):
-        return self._cfg.desc if self._cfg else ""
-
-    @property
-    def should_poll(self):
-        """Return the polling state."""
-        return True
-
-    @property
-    def assumed_state(self):
-        """Return true if unable to access real state of entity."""
-        return False
-
-    @property
-    def device_state_attributes(self):
-        """Return device specific state attributes."""
-        return {
-        "file": self._cfg.file
-        }

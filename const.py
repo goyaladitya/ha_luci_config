@@ -4,6 +4,7 @@ from datetime import timedelta
 
 
 DOMAIN = "luci_config"
+SIGNAL_STATE_UPDATED = "{}.updated".format(DOMAIN)
 
 MIN_UPDATE_INTERVAL = 1
 DEFAULT_UPDATE_INTERVAL = 10
