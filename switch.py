@@ -1,3 +1,4 @@
+from datetime import timedelta
 import logging
 
 from homeassistant.core import HomeAssistant
@@ -17,6 +18,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+SCAN_INTERVAL = timedelta(seconds=30)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up switches dynamically."""
@@ -27,6 +29,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         entities.append(LuciConfigSwitch(rpc, key))
     for key in rpc.vpn:
         entities.append(LuciVPNSwitch(rpc, key))
+    for key in rpc.rule:
+        entities.append(LuciRuleSwitch(rpc, key))
     
     async_add_entities(entities, True)
 
@@ -150,7 +154,7 @@ class LuciVPNSwitch(LuciEntity, ToggleEntity):
         #await self.instrument.turn_on()
         _LOGGER.debug("Luci: %s turned on", self._vpn.name)
 
-        self._rpc.rpc_call("set", "openvpn", self._vpn.name, "enabled", "1")
+        self._rpc.rpc_call("set", "openvpn", self._vpn.id, "enabled", "1")
         self._rpc.rpc_call("commit", "openvpn")
 
         self.schedule_update_ha_state()
@@ -160,7 +164,7 @@ class LuciVPNSwitch(LuciEntity, ToggleEntity):
         #await self.instrument.turn_off()
         _LOGGER.debug("Luci: %s turned off", self._vpn.name)
 
-        self._rpc.rpc_call("set", "openvpn", self._vpn.name, "enabled", "0")
+        self._rpc.rpc_call("set", "openvpn", self._vpn.id, "enabled", "0")
         self._rpc.rpc_call("commit", "openvpn")
 
         self.schedule_update_ha_state()
@@ -169,10 +173,57 @@ class LuciVPNSwitch(LuciEntity, ToggleEntity):
         """Update vesync device."""
         self._is_on = False
         try:
-            cfg_value = self._rpc.rpc_call('get', "openvpn", self._vpn.name, "enabled")
+            cfg_value = self._rpc.rpc_call('get', "openvpn", self._vpn.id, "enabled")
         except:
             return
         if (cfg_value is not None):
-            _LOGGER.debug("LuciOpenVPN get %s returned: %s", self._vpn.name, cfg_value) 
+            _LOGGER.debug("Luci VPN get %s returned: %s", self._vpn.name, cfg_value) 
             self._is_on = (cfg_value == "1")
+        
+class LuciRuleSwitch(LuciEntity, ToggleEntity):
+    """Representation of a Luci switch."""
+
+    def __init__(self, rpc, name):
+        super().__init__(rpc, name)
+        self._rule = self._rpc.rule[self.cfgname]
+
+    @property
+    def name(self):
+        return "%s Rule" % (self._rule.name)
+
+    @property
+    def icon(self):
+        """Return the icon."""
+        return "mdi:fire"
+
+    def turn_on(self, **kwargs):
+        """Turn the switch on."""
+        #await self.instrument.turn_on()
+        _LOGGER.debug("Luci: %s turned on", self._rule.name)
+
+        self._rpc.rpc_call("set", "firewall", self._rule.id, "enabled", "1")
+        self._rpc.rpc_call("commit", "firewall")
+
+        self.schedule_update_ha_state()
+
+    def turn_off(self, **kwargs):
+        """Turn the switch off."""
+        #await self.instrument.turn_off()
+        _LOGGER.debug("Luci: %s turned off", self._rule.name)
+
+        self._rpc.rpc_call("set", "firewall", self._rule.id, "enabled", "0")
+        self._rpc.rpc_call("commit", "firewall")
+
+        self.schedule_update_ha_state()
+
+    def update(self):
+        """Update vesync device."""
+        self._is_on = False
+        try:
+            cfg_value = self._rpc.rpc_call('get', "firewall", self._rule.id, "enabled")
+        except:
+            return
+        if (cfg_value is not None):
+            _LOGGER.debug("Luci Rule get %s returned: %s", self._rule.name, cfg_value) 
+            self._is_on = (cfg_value != "0")
         

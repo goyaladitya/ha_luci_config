@@ -103,21 +103,36 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
 
     openvpn_result = await hass.async_add_executor_job(_rpc.rpc_call, 'get_all', 'openvpn')
-    _LOGGER.debug("Luci get_all openvpn returned: %s", openvpn_result)    
-
     for vpn_entry in openvpn_result:
         _LOGGER.debug("Luci: vpn %s", vpn_entry)
         if openvpn_result[vpn_entry][".name"] in _rpc.vpn:
             vpn = _rpc.vpn[openvpn_result[vpn_entry][".name"]]
         else:
             _LOGGER.info("Luci: vpn %s found", vpn_entry)
-            vpn =_rpc.vpn[openvpn_result[vpn_entry][".name"]] = LuciVPN()
+            vpn =_rpc.vpn[openvpn_result[vpn_entry][".name"]] = LuciConfigItem()
 
-        vpn.name = openvpn_result[vpn_entry][".name"]
+        vpn.id = openvpn_result[vpn_entry][".name"]
+        vpn.name = openvpn_result[vpn_entry]["name"] if "name" in openvpn_result[vpn_entry] else openvpn_result[vpn_entry][".name"]
         if "enabled" not in openvpn_result[vpn_entry]:
             vpn.enabled = False
         else:
             vpn.enabled = openvpn_result[vpn_entry]["enabled"] == "1"
+
+    firewall_result = await hass.async_add_executor_job(_rpc.rpc_call, 'get_all', 'firewall')
+    for rule_entry in firewall_result:
+        _LOGGER.debug("Luci: rule %s", rule_entry)
+        if firewall_result[rule_entry][".name"] in _rpc.rule:
+            rule = _rpc.rule[firewall_result[rule_entry][".name"]]
+        else:
+            _LOGGER.info("Luci: rule %s found", rule_entry)
+            rule =_rpc.rule[firewall_result[rule_entry][".name"]] = LuciConfigItem()
+
+        rule.id = firewall_result[rule_entry][".name"]
+        rule.name = firewall_result[rule_entry]["name"] if "name" in firewall_result[rule_entry] else firewall_result[rule_entry][".name"]
+        if "enabled" not in firewall_result[rule_entry]:
+            rule.enabled = False
+        else:
+            rule.enabled = firewall_result[rule_entry]["enabled"] == "1"
 
     for component in PLATFORMS:
         hass.async_create_task(
@@ -173,9 +188,10 @@ class LuciConfig():
     def __hash__(self):
         return hash(self.__repr__())
 
-class LuciVPN():
+class LuciConfigItem():
 
     def __init__(self):
+        self.id = ""
         self.name = ""
         self.enabled = False
 
@@ -183,8 +199,8 @@ class LuciVPN():
         return self.name
 
     def __eq__(self, other):
-        if isinstance(other, LuciVPN):
-            return (self.name == other.name)
+        if isinstance(other, LuciConfigItem):
+            return (self.id == other.id)
         else:
             return False
 
@@ -212,6 +228,7 @@ class LuciRPC():
 
         self.cfg = {}
         self.vpn = {}
+        self.rule = {}
 
     def rpc_call(self, method, *args,  **kwargs):
         rpc_uci_call = Constants.LUCI_RPC_UCI_PATH.format(
