@@ -90,7 +90,7 @@ class LuciConfigSwitch(LuciEntity, ToggleEntity):
         return "mdi:script-text"
 
     @property
-    def device_state_attributes(self):
+    def extra_state_attributes(self):
         """Return device specific state attributes."""
         return {
         "file": self._cfg.file
