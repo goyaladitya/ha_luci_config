@@ -120,7 +120,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
 
     firewall_result = await hass.async_add_executor_job(_rpc.rpc_call, 'get_all', 'firewall')
     for rule_entry in firewall_result:
-        _LOGGER.debug("Luci: rule %s", rule_entry)
+        _LOGGER.debug("Luci: rule %s: %s", rule_entry, firewall_result[rule_entry])
         if firewall_result[rule_entry][".name"] in _rpc.rule:
             rule = _rpc.rule[firewall_result[rule_entry][".name"]]
         else:
@@ -130,7 +130,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
         rule.id = firewall_result[rule_entry][".name"]
         rule.name = firewall_result[rule_entry]["name"] if "name" in firewall_result[rule_entry] else firewall_result[rule_entry][".name"]
         if "enabled" not in firewall_result[rule_entry]:
-            rule.enabled = False
+            rule.enabled = True
         else:
             rule.enabled = firewall_result[rule_entry]["enabled"] == "1"
 

@@ -1,6 +1,8 @@
 from datetime import timedelta
 import logging
 
+from openwrt_luci_rpc.exceptions import InvalidLuciLoginError # pylint: disable=import-error
+
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity import ToggleEntity # pylint: disable=import-error
@@ -18,7 +20,7 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-SCAN_INTERVAL = timedelta(seconds=30)
+SCAN_INTERVAL = timedelta(seconds=60)
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up switches dynamically."""
@@ -139,6 +141,7 @@ class LuciVPNSwitch(LuciEntity, ToggleEntity):
     def __init__(self, rpc, name):
         super().__init__(rpc, name)
         self._vpn = self._rpc.vpn[self.cfgname]
+        self._is_on = self._vpn.enabled
 
     @property
     def name(self):
@@ -174,6 +177,9 @@ class LuciVPNSwitch(LuciEntity, ToggleEntity):
         self._is_on = False
         try:
             cfg_value = self._rpc.rpc_call('get', "openvpn", self._vpn.id, "enabled")
+        except InvalidLuciLoginError:
+            # Assume this means the "enabled" key is not present; Assume it means True
+            cfg_value = True
         except:
             return
         if (cfg_value is not None):
@@ -186,6 +192,7 @@ class LuciRuleSwitch(LuciEntity, ToggleEntity):
     def __init__(self, rpc, name):
         super().__init__(rpc, name)
         self._rule = self._rpc.rule[self.cfgname]
+        self._is_on = self._rule.enabled
 
     @property
     def name(self):
@@ -221,7 +228,11 @@ class LuciRuleSwitch(LuciEntity, ToggleEntity):
         self._is_on = False
         try:
             cfg_value = self._rpc.rpc_call('get', "firewall", self._rule.id, "enabled")
+        except InvalidLuciLoginError:
+            # Assume this means the "enabled" key is not present; Assume it means True
+            cfg_value = True
         except:
+            _LOGGER.error("Cannot update rule %s", self._rule.id) 
             return
         if (cfg_value is not None):
             _LOGGER.debug("Luci Rule get %s returned: %s", self._rule.name, cfg_value) 
